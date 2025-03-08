@@ -1,0 +1,18 @@
+Question -> Query Translation -> Routing -> Query Construction -> Indexing -> Retrieval -> Generation   
+
+Query Translation: 
+    - Multi-Query (RAG Fusion nutzt auch andere Wissensquellen, aber das hier soll sich nur auf die vorhandenen PDFs beziehen)
+Routing: 
+    - Not necessary (because focus mainly on only PDFs), but if I have to choose --> Semantic Routing    
+    - Vllt brauche ich es aber doch, kommt auf Input andere
+Query Construction: 
+    - Since you already use Multi-Query, try evaluating your retrieval quality first. If your retrieval misses key information, then adding Query Construction could be the next step.
+Indexing: 
+    - Multi-representation Indexing (dense --> paper is available)
+    - Chunking (see video)
+    - RAPTOR (maybe, but probably not necessary)
+ Retrieval:
+    - Reranking after retrieval (maybe cross encoder or bm25)
+    - CRAG (maybe needed if there are more knowledge sources)
+Generation:
+    - Self-RAG (use if model sometimes generates weak or incomplete answers)

@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
 import os
-import bs4
 
 from langchain import hub
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -9,9 +8,15 @@ from langchain_community.vectorstores import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.document_loaders.pdf import PyPDFLoader
+
+
+
 
 # Load API keys
-load_dotenv(".env")
+# Explicitly load the .env file from the outer directory
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+load_dotenv(env_path)  # Ensure the correct path is used
 openai_api_key = os.getenv("OPENAI_API_KEY")
 langsmith_api_key = os.getenv("LANGCHAIN_API_KEY")
 
@@ -25,16 +30,17 @@ os.environ['OPENAI_API_KEY'] = openai_api_key
 
 #### INDEXING ####
 
-# Load Documents
-loader = WebBaseLoader(
-    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
-    bs_kwargs=dict(
-        parse_only=bs4.SoupStrainer(
-            class_=("post-content", "post-title", "post-header")
-        )
-    ),
-)
-docs = loader.load()
+# Path to test_data folder containing PDFs
+pdf_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_data")
+
+# Load all PDFs from the folder
+pdf_files = [os.path.join(pdf_folder, f) for f in os.listdir(pdf_folder) if f.endswith(".pdf")]
+
+# Load documents using PyPDFLoader
+docs = []
+for pdf in pdf_files:
+    loader = PyPDFLoader(pdf)
+    docs.extend(loader.load())
 
 # Split
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -67,4 +73,5 @@ rag_chain = (
 )
 
 # Question
-rag_chain.invoke("What types of memories are there?")
+response = rag_chain.invoke("What types of gestures are there?")
+print(response)
