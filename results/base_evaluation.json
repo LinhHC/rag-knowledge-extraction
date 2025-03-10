@@ -1,0 +1,11 @@
+{
+    "evaluation_scores": {
+        "mean_precision@5": 0.057999999999999996,
+        "mean_recall": 0.29,
+        "mean_f1_score": 0.09666666666666666,
+        "mean_bert_score": 0.8116381615400314,
+        "faithfulness_percentage": 0.0,
+        "average_latency": 1.1762815499305725
+    },
+    "mean_reciprocal_rank": 0.06266666666666666
+}

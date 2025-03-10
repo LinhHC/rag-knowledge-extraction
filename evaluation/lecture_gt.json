@@ -1,0 +1,114 @@
+[
+    {
+        "question": "How many credits does this course give?",
+        "answer": "5"
+    },
+    {
+        "question": "What is the definition of a data scientist from Davenport & Patil (2012)?",
+        "answer": "Data scientists are the people who understand how to fish out answers to important business questions from today’s tsunami of unstructured information."
+    },
+    {
+        "question": "What is data mining explained by Cabena et al. (1997)?",
+        "answer": "Data Mining is the process of extracting previously unknown, valid, and actionable information from large databases and then using the information to make crucial business decisions."
+    },
+    {
+        "question": "What are the different types of analytics?",
+        "answer": "Descriptive Analytics, Diagnostic Analytics, Predictive Analytics, Prescriptive Analytics"
+    },
+    {
+        "question": "What is the definition of Machine Learning by Samuel (1959)?",
+        "answer": "Machine Learning: Field of study that gives computers the ability to learn without being explicitly programmed."
+    },
+    {
+        "question": "In what categories can Machine Learning tasks be classified?",
+        "answer": "Supervised Learning, Unsupervised Learning, Reinforcement Learning"
+    },
+    {
+        "question": "What is the definition of Deep Learning by Najafabadi et al. (2016)?",
+        "answer": "The main concept in deep learning algorithms is automating the extraction of representations (abstractions) from the data. Deep learning algorithms use a huge amount of unsupervised data to automatically extract complex representations."
+    },
+    {
+        "question": "What types of statistics are there?",
+        "answer": "Descriptive statistics, Inductive statistics"
+    },
+    {
+        "question": "Why is data visualization so important for Data Science?",
+        "answer": "Because of the way the human brain processes information, using charts or graphs to visualize large amounts of complex data is easier than poring over spreadsheets or reports. Data visualization is a quick, easy way to convey concepts in a universal manner – and you can experiment with different scenarios by making slight adjustments."
+    },
+    {
+        "question": "What is segmentation or cluster analysis used for?",
+        "answer": "Segmentation or cluster analysis is used to group objects and/or characteristics into classes or groups, so that - between the elements of the same classes as similar as possible, - between the elements of different classes the greatest possible dissimilarity is achieved."
+    },
+    {
+        "question": "What is a hierarchy regarding segmentation?",
+        "answer": "A hierarchy is a union of disjoint segmentations, i.e., a sequence of disjoint segmentations for one class, two classes, ..., n classes. An overlap of the classes is excluded."
+    },
+    {
+        "question": "What is Agglomerative Clustering?",
+        "answer": "Each object initially represents a cluster of its own. Then clusters are successively merged until the desired cluster structure is obtained."
+    },
+    {
+        "question": "What is Diversive Clustering?",
+        "answer": "All objects initially belong to one cluster. Then the cluster is divided into sub-clusters, which are successively divided into their own sub-clusters. This process continues until the desired cluster structure is obtained."
+    },
+    {
+        "question": "What are items regarding Association Analysis?",
+        "answer": "Items are uninterpretable, discrete things or entities."
+    },
+    {
+        "question": "What is the A-priori algorithm?",
+        "answer": "The A-priori algorithm is considered a classical method for the formation of association rules or for the efficient determination of all relevant relationships in a database. The algorithm searches for all rules that have a high confidence value. It must now be taken into account that the important confidence of a rule is also expressed by its support values."
+    },
+    {
+        "question": "What is anomaly detection?",
+        "answer": "Detections of patterns that do not conform to 'normal' behavior."
+    },
+    {
+        "question": "What are the application domains of anomaly detection?",
+        "answer": "- Fraud Detection (e.g., credit card fraud, tax fraud, etc.) - Intrusion Detection in cyber security - Fault Detection in safety critical systems - Military surveillance of enemies."
+    },
+    {
+        "question": "What are types of anomalies?",
+        "answer": "Point Anomalies, Contextual Anomalies, Collective Anomalies."
+    },
+    {
+        "question": "What are anomaly detection methods?",
+        "answer": "Classification based, neighbor based, clustering based, statistical methods, information theory based, spectral theory based."
+    },
+    {
+        "question": "What type of layers are in ANN?",
+        "answer": "Input Layer, Hidden Layer, Output Layer."
+    },
+    {
+        "question": "What type of units are in ANN?",
+        "answer": "Input Units, Hidden Units, Output Units."
+    },
+    {
+        "question": "What types of layers are in CNN?",
+        "answer": "Convolution Layer, Pooling Layer, ReLu Layer, Fully Connected Layer."
+    },
+    {
+        "question": "What is text mining?",
+        "answer": "The term text mining refers to the analytical process for computer-assisted knowledge generation from text data."
+    },
+    {
+        "question": "What are the challenges of text mining?",
+        "answer": "Very large amounts of (text) data, High dimensionality, 'Noise' in the data, Understanding the results, Texts are usually not intended for computer-based processing."
+    },
+    {
+        "question": "What are process models in business informatics?",
+        "answer": "Process models specify the sequence in which certain activities should be carried out or procedures should be used in order to successfully complete (IT) projects; this serves on the one hand to structure tasks and on the other hand to reduce complexity within these projects."
+    },
+    {
+        "question": "What are process mining challenges?",
+        "answer": "Correlation challenge, Timestamps challenge, longevity challenge, scoping challenge, granularity challenge."
+    },
+    {
+        "question": "What is the α-algorithm?",
+        "answer": "The α-algorithm is a basic algorithm for discovering process models from event logs."
+    },
+    {
+        "question": "What are the four quality criteria?",
+        "answer": "Fitness, Simplicity, Precision, Generalization."
+    }
+]
