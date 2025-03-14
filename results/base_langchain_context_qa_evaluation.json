@@ -16,7 +16,7 @@
     },
     {
         "query": "What are process mining challenges?",
-        "retrieval_score": 1,
+        "retrieval_score": 0,
         "feedback": "No feedback provided"
     },
     {
@@ -26,7 +26,7 @@
     },
     {
         "query": "What are the four quality criteria?",
-        "retrieval_score": 1,
+        "retrieval_score": 0,
         "feedback": "No feedback provided"
     },
     {
