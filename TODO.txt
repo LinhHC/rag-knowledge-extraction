@@ -3,7 +3,7 @@
 - SELF Rag?
 - Unnötige Files entfernen
 - Kommentare schreiben
-- Readme schreiben
+- Readme schreiben (erwähnen, dass LangSmith aus ist)
 
 
 

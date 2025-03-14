@@ -8,7 +8,6 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
-import bert_score
 
 # Load environment variables
 load_dotenv()
@@ -152,14 +151,7 @@ def mean_average_precision(y_true, y_pred):
 mrr = semantic_mrr(retrieved_texts, ground_truth_texts)
 map_score = mean_average_precision(y_true, y_pred)
 
-# Compute BERTScore
-bert_precision, bert_recall, bert_f1 = bert_score.score(
-    cands=[entry["generated"] for entry in evaluation_results],
-    refs=[entry["ground_truth"] for entry in evaluation_results],
-    model_type="microsoft/deberta-large-mnli",  # Fully pre-trained model
-    lang="en",
-    rescale_with_baseline=True
-)
+
 
 metrics_output = {
     "precision": precision,
@@ -167,9 +159,6 @@ metrics_output = {
     "f1_score": f1,
     "mrr": mrr,
     "map": map_score,
-    "bert_precision": bert_precision.mean().item(),
-    "bert_recall": bert_recall.mean().item(),
-    "bert_f1": bert_f1.mean().item()
 }
 
 with open(output_metrics_file, "w", encoding="utf-8") as f:
@@ -181,7 +170,4 @@ print(f"✅ Recall: {recall:.4f}")
 print(f"✅ F1-score: {f1:.4f}")
 print(f"✅ Mean Reciprocal Rank (MRR): {mrr:.4f}")
 print(f"✅ Mean Average Precision (MAP): {map_score:.4f}")
-print(f"✅ BERT Precision: {metrics_output['bert_precision']:.4f}")
-print(f"✅ BERT Recall: {metrics_output['bert_recall']:.4f}")
-print(f"✅ BERT F1-score: {metrics_output['bert_f1']:.4f}")
 print(f"📂 Metrics saved to {output_metrics_file}")

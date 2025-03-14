@@ -1,0 +1,253 @@
+# Standard Library Imports
+import os
+import json
+import hashlib
+import pickle
+import io
+from contextlib import redirect_stderr
+
+# Third-Party Imports
+from dotenv import load_dotenv
+from sentence_transformers import CrossEncoder
+from langchain_chroma import Chroma
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain.prompts import ChatPromptTemplate
+from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.document_loaders.pdf import PyPDFLoader
+from operator import itemgetter
+from ragas import evaluate
+from ragas.metrics import context_precision, answer_relevancy, faithfulness, answer_correctness
+from datasets import Dataset
+
+# ----------------- CONFIGURATION & SETUP -----------------
+def load_environment():
+    """Loads API keys from .env file and sets environment variables."""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    load_dotenv(env_path)
+
+    os.environ['LANGCHAIN_TRACING_V2'] = 'true'
+    os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
+    os.environ['LANGSMITH_PROJECT'] = "RAG"
+    os.environ['LANGCHAIN_API_KEY'] = os.getenv("LANGCHAIN_API_KEY")
+    os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
+
+# ----------------- LOAD EVALUATION DATA -----------------
+def load_evaluation_data(json_path):
+    """Loads queries and ground truth answers from a JSON file."""
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    user_queries = [entry["question"] for entry in data]
+    ground_truth_answers = [entry["answer"] for entry in data]
+    
+    print(f"\n📂 Loaded {len(user_queries)} evaluation queries from JSON.\n")
+    
+    return user_queries, ground_truth_answers
+
+# ----------------- DATA HANDLING -----------------
+def load_pdfs_from_folder(folder_path):
+    """Loads PDFs from a folder while suppressing warnings."""
+    print("\n📂 Extracting PDFs...")
+    pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
+    docs = []
+
+    for pdf in pdf_files:
+        with io.StringIO() as err, redirect_stderr(err):  # Suppress stderr output
+            loader = PyPDFLoader(pdf)
+            docs.extend(loader.load())
+
+    print(f"✅ Loaded {len(docs)} documents from {len(pdf_files)} PDFs.\n")
+    return docs
+
+
+def compute_dataset_hash(docs):
+    """Computes a hash for the dataset based on document contents."""
+    hasher = hashlib.md5()
+    for doc in docs:
+        hasher.update(doc.page_content.encode("utf-8"))
+    return hasher.hexdigest()
+
+
+# ----------------- CHROMA INDEXING & RETRIEVAL -----------------
+def setup_chroma_index(docs, chroma_cache_path):
+    """Sets up ChromaDB index, either loading from cache or rebuilding."""
+    print("🔍 Checking dataset integrity...")
+    current_hash = compute_dataset_hash(docs)
+
+    hash_file = os.path.join(chroma_cache_path, "dataset_hash.pkl")
+    vectorstore_path = os.path.join(chroma_cache_path, "chroma_db")
+
+    # Try to load previous hash
+    previous_hash = None
+    if os.path.exists(hash_file):
+        with open(hash_file, "rb") as f:
+            previous_hash = pickle.load(f)
+
+    print("🔍 Checking for existing ChromaDB cache...")
+    if os.path.exists(vectorstore_path) and current_hash == previous_hash:
+        print("✅ Using cached ChromaDB index.\n")
+        return Chroma(persist_directory=vectorstore_path, embedding_function=OpenAIEmbeddings())
+
+    # Rebuild index if dataset has changed
+    print("🔄 New data detected. Rebuilding ChromaDB index...\n")
+
+    # Split text into smaller chunks
+    print("📂 Splitting documents...")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=50)
+    splits = text_splitter.split_documents(docs)
+    print(f"✅ Split into {len(splits)} text chunks.\n")
+
+    # Embed and store in Chroma
+    print("⚡ Processing embeddings in ChromaDB...")
+    vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings(), persist_directory=vectorstore_path)
+    print("✅ ChromaDB index built successfully.\n")
+
+    # Save new dataset hash
+    os.makedirs(chroma_cache_path, exist_ok=True)
+    with open(hash_file, "wb") as f:
+        pickle.dump(current_hash, f)
+
+    return vectorstore
+
+
+# --------------- MULTI-QUERY GENERATION + RERANKING ----------------
+def get_unique_union(documents: list[list[Document]]):
+    """Removes duplicate documents from multi-query retrieval."""
+    seen_contents = set()
+    unique_docs = []
+
+    for sublist in documents:
+        for doc in sublist:
+            if isinstance(doc, Document) and doc.page_content not in seen_contents:
+                seen_contents.add(doc.page_content)
+                unique_docs.append(doc)
+
+    return unique_docs
+
+
+def create_multi_query_pipeline():
+    """Creates a query expansion and retrieval pipeline."""
+    query_expansion_prompt = ChatPromptTemplate.from_template(
+        """You are an AI assistant. Your task is to generate three
+        different versions of the given user question to retrieve relevant documents from a vector 
+        database. Provide these alternative questions separated by newlines. 
+        Original question: {question}"""
+    )
+
+    return (
+        query_expansion_prompt
+        | ChatOpenAI(temperature=0)
+        | StrOutputParser()
+        | (lambda x: x.split("\n"))
+    )
+
+def rerank_with_sbert(input_data):
+    """Reranks retrieved documents with SBERT"""
+    print("🔄 Reranking the retrieved documents...\n")
+    query = input_data["question"]
+    documents = [doc.page_content for doc in input_data["documents"]]  # Convert to list of strings
+    
+    # Load SBERT reranker model
+    reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-12-v2")
+    
+    pairs = [(query, doc) for doc in documents]
+    scores = reranker.predict(pairs)
+    sorted_docs = sorted(zip(input_data["documents"], scores), key=lambda x: x[1], reverse=True)
+
+    reranked_documents = [doc for doc, _ in sorted_docs[:5]]
+
+    return {"question": query, "documents": reranked_documents}
+
+# ----------------- RETRIEVAL & RESPONSE GENERATION -----------------
+def generate_response(rag_chain, user_queries, ground_truth_answers, retriever):
+    """Handles batch evaluation for multiple queries."""
+    
+    eval_samples = []
+    
+    for user_query, ground_truth_answer in zip(user_queries, ground_truth_answers):
+
+        response = rag_chain.invoke({"question": user_query})
+
+        # Retrieve relevant documents
+        retrieved_docs = retriever.invoke(user_query)
+
+        # Collect evaluation sample
+        eval_samples.append({
+            "question": user_query,
+            "ground_truth": ground_truth_answer,
+            "response": response,
+            "retrieved_contexts": [doc.page_content for doc in retrieved_docs]
+        })
+
+    # Convert list to RAGAS-compatible dataset
+    dataset = Dataset.from_list(eval_samples)
+
+    # Run RAGAS Evaluation
+    results = evaluate(dataset, metrics=[context_precision, answer_relevancy, faithfulness, answer_correctness])
+
+    print("\n📊 RAGAS Evaluation Results (Batch Mode):")
+    print(results)
+
+
+# ----------------- MAIN EXECUTION -----------------
+def main():
+    """Main function to initialize and run the pipeline."""
+    load_environment()
+
+    # Define dataset paths
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    data_folder = os.path.join(base_path, "data")
+    chroma_cache_path = os.path.join(base_path, "chroma_cache")
+    json_path = os.path.join(os.path.dirname(__file__), "../evaluation/rephrased_lecture_gt.json")
+    
+    # Load PDFs
+    docs = load_pdfs_from_folder(data_folder)
+
+    # Setup ChromaDB
+    vectorstore = setup_chroma_index(docs, chroma_cache_path)
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+    # Create query expansion and rerank runnable
+    query_pipeline = create_multi_query_pipeline()
+    rerank_runnable = RunnableLambda(rerank_with_sbert)
+    
+    # Create retrieval chain
+    retrieval_chain = (
+        query_pipeline 
+        | retriever.map() 
+        | get_unique_union     
+        | (lambda x: {"question": x["question"], "documents": x["documents"]} if isinstance(x, dict) else {"question": "", "documents": x})  
+        | rerank_runnable  # Apply SBERT reranking
+        | (lambda x: x["documents"])
+    )
+
+    # Answer Generation
+    response_prompt = ChatPromptTemplate.from_template(
+        """Answer the following question based on this context:
+
+        {context}
+
+        Question: {question}"""
+    )
+
+    llm = ChatOpenAI(temperature=0)
+
+    rag_chain = (
+        {"context": retrieval_chain, "question": itemgetter("question")}
+        | response_prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # Load evaluation queries and answers from JSON
+    user_queries, ground_truth_answers = load_evaluation_data(json_path)
+    
+    # Run batch evaluation
+    generate_response(rag_chain, user_queries, ground_truth_answers, retriever)
+
+
+if __name__ == "__main__":
+    main()
