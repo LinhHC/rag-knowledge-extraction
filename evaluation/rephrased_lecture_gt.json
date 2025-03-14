@@ -1,0 +1,114 @@
+[
+    {
+        "question": "How many credits does this course give?",
+        "answer": "This course provides 5 academic credits."
+    },
+    {
+        "question": "What is the definition of a data scientist from Davenport & Patil (2012)?",
+        "answer": "A data scientist is someone who extracts insights from vast amounts of unstructured data to answer critical business questions."
+    },
+    {
+        "question": "What is data mining explained by Cabena et al. (1997)?",
+        "answer": "Data mining is the process of uncovering previously unknown, useful insights from large datasets to support decision-making."
+    },
+    {
+        "question": "What are the different types of analytics?",
+        "answer": "Descriptive Analytics, Diagnostic Analytics, Predictive Analytics, Prescriptive Analytics"
+    },
+    {
+        "question": "What is the definition of Machine Learning by Samuel (1959)?",
+        "answer": "Machine learning is a field of AI that enables computers to learn and improve from experience without explicit programming."
+    },
+    {
+        "question": "In what categories can Machine Learning tasks be classified?",
+        "answer": "Supervised Learning, Unsupervised Learning, Reinforcement Learning"
+    },
+    {
+        "question": "What is the definition of Deep Learning by Najafabadi et al. (2016)?",
+        "answer": "Deep learning is an advanced AI technique that allows computers to learn complex patterns by analyzing vast amounts of data with neural networks."
+    },
+    {
+        "question": "What types of statistics are there?",
+        "answer": "Statistics can be categorized into Descriptive Statistics and Inferential Statistics."
+    },
+    {
+        "question": "Why is data visualization so important for Data Science?",
+        "answer": "Data visualization is essential in Data Science because it simplifies complex datasets by using graphs and charts, making them easier to interpret."
+    },
+    {
+        "question": "What is segmentation or cluster analysis used for?",
+        "answer": "Segmentation, also known as cluster analysis, is the process of grouping similar objects together while maximizing the distinction between different groups."
+    },
+    {
+        "question": "What is a hierarchy regarding segmentation?",
+        "answer": "Segmentation, also known as cluster analysis, is the process of grouping similar objects together while maximizing the distinction between different groups."
+    },
+    {
+        "question": "What is Agglomerative Clustering?",
+        "answer": "Each object initially represents a cluster of its own. Then clusters are successively merged until the desired cluster structure is obtained."
+    },
+    {
+        "question": "What is Diversive Clustering?",
+        "answer": "All objects initially belong to one cluster. Then the cluster is divided into sub-clusters, which are successively divided into their own sub-clusters. This process continues until the desired cluster structure is obtained."
+    },
+    {
+        "question": "What are items regarding Association Analysis?",
+        "answer": "Items are uninterpretable, discrete things or entities."
+    },
+    {
+        "question": "What is the A-priori algorithm?",
+        "answer": "The A-priori algorithm is a classical technique for discovering frequent patterns and association rules in large datasets."
+    },
+    {
+        "question": "What is anomaly detection?",
+        "answer": "Detections of patterns that do not conform to 'normal' behavior."
+    },
+    {
+        "question": "What are the application domains of anomaly detection?",
+        "answer": "- Fraud Detection (e.g., credit card fraud, tax fraud, etc.) - Intrusion Detection in cyber security - Fault Detection in safety critical systems - Military surveillance of enemies."
+    },
+    {
+        "question": "What are types of anomalies?",
+        "answer": "Point Anomalies, Contextual Anomalies, Collective Anomalies."
+    },
+    {
+        "question": "What are anomaly detection methods?",
+        "answer": "Classification based, neighbor based, clustering based, statistical methods, information theory based, spectral theory based."
+    },
+    {
+        "question": "What type of layers are in ANN?",
+        "answer": "Input Layer, Hidden Layer, Output Layer."
+    },
+    {
+        "question": "What type of units are in ANN?",
+        "answer": "Input Units, Hidden Units, Output Units."
+    },
+    {
+        "question": "What types of layers are in CNN?",
+        "answer": "Convolution Layer, Pooling Layer, ReLu Layer, Fully Connected Layer."
+    },
+    {
+        "question": "What is text mining?",
+        "answer": "Text mining is the computational process of extracting meaningful insights and patterns from textual data."
+    },
+    {
+        "question": "What are the challenges of text mining?",
+        "answer": "Very large amounts of (text) data, High dimensionality, 'Noise' in the data, Understanding the results, Texts are usually not intended for computer-based processing."
+    },
+    {
+        "question": "What are process models in business informatics?",
+        "answer": "Process models define structured workflows, outlining the sequence of activities needed to complete an IT or business project efficiently."
+    },
+    {
+        "question": "What are process mining challenges?",
+        "answer": "Correlation challenge, Timestamps challenge, longevity challenge, scoping challenge, granularity challenge."
+    },
+    {
+        "question": "What is the α-algorithm?",
+        "answer": "Process models define structured workflows, outlining the sequence of activities needed to complete an IT or business project efficiently."
+    },
+    {
+        "question": "What are the four quality criteria?",
+        "answer": "Fitness, Simplicity, Precision, Generalization."
+    }
+]

@@ -5,6 +5,10 @@ from langchain.evaluation import load_evaluator
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 from sklearn.metrics import precision_score, recall_score, f1_score
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import bert_score
 
 # Load environment variables
 load_dotenv()
@@ -15,9 +19,9 @@ if not openai_api_key:
     raise ValueError("❌ Missing OPENAI_API_KEY. Please set it in your .env file or environment variables.")
 
 # Set file paths
-results_file = "C:/Users/Linh/Desktop/rag-knowledge-extraction/results/evaluation_results.json"
-output_evaluation_file = "C:/Users/Linh/Desktop/rag-knowledge-extraction/results/langchain_context_qa_evaluation.json"
-output_metrics_file = "C:/Users/Linh/Desktop/rag-knowledge-extraction/results/evaluation_metrics.json"
+results_file = "C:/Users/Linh/Desktop/rag-knowledge-extraction/results/base_evaluation_results.json"
+output_evaluation_file = "C:/Users/Linh/Desktop/rag-knowledge-extraction/results/base_langchain_context_qa_evaluation.json"
+output_metrics_file = "C:/Users/Linh/Desktop/rag-knowledge-extraction/results/base_evaluation_metrics.json"
 
 # Ensure the evaluation results file exists
 if not os.path.exists(results_file):
@@ -37,7 +41,7 @@ for entry in evaluation_results:
     })
 
 # Load LangChain's `context_qa` evaluator with explicit LLM
-context_qa_evaluator = load_evaluator("context_qa", llm=ChatOpenAI(api_key=openai_api_key))
+context_qa_evaluator = load_evaluator("context_qa", llm=ChatOpenAI(api_key=openai_api_key, temperature=0))
 
 # Evaluate each sample
 eval_results = []
@@ -53,6 +57,10 @@ for sample in eval_samples:
         "feedback": result.get("feedback", "No feedback provided")
     })
 
+print("\n🔍 Debug: Retrieval Scores Per Query")
+for entry in eval_results:
+    print(f"Query: {entry['query']}, Retrieval Score: {entry['retrieval_score']}")
+
 # Save LangChain retrieval evaluation results
 with open(output_evaluation_file, "w", encoding="utf-8") as f:
     json.dump(eval_results, f, indent=4)
@@ -63,18 +71,72 @@ print(f"📂 Results saved to {output_evaluation_file}")
 ### COMPUTE STANDARD METRICS (Precision, Recall, F1, MRR, MAP) ###
 
 # Extract true labels and predictions
-y_true = [1] * len(eval_results)  # All queries expect at least one relevant document
-y_pred = [1 if entry["retrieval_score"] > 0 else 0 for entry in eval_results]  # 1 if retrieved relevant document, else 0
+y_true = [1 if entry["reference"] else 0 for entry in eval_samples]
+y_pred = [1 if entry["retrieval_score"] > 0 else 0 for entry in eval_results]
+
+print("\n🔍 Debugging Precision Calculation")
+print(f"y_true: {y_true}")
+print(f"y_pred: {y_pred}")
+
+# Debugging precision calculation
+false_negatives = sum([1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 0])
+false_positives = sum([1 for yt, yp in zip(y_true, y_pred) if yt == 0 and yp == 1])
+true_positives = sum([1 for yt, yp in zip(y_true, y_pred) if yt == 1 and yp == 1])
+
+print("\n🔍 Debugging Precision Calculation")
+print(f"Total Queries: {len(y_true)}")
+print(f"True Positives (TP): {true_positives}")
+print(f"False Positives (FP): {false_positives}")
+print(f"False Negatives (FN): {false_negatives}")
+print(f"y_true: {y_true}")
+print(f"y_pred: {y_pred}")
+
+
+# Debugging check
+print(f"\nTotal Queries: {len(y_true)}")
+print(f"Total Retrieved (y_pred=1): {sum(y_pred)}")
+print(f"Total Ground Truth Exists (y_true=1): {sum(y_true)}")
 
 # Compute Precision, Recall, and F1-score
 precision = precision_score(y_true, y_pred, zero_division=0)
 recall = recall_score(y_true, y_pred, zero_division=0)
 f1 = f1_score(y_true, y_pred, zero_division=0)
 
+retrieved_texts = [entry["retrieved"][0] if entry["retrieved"] else "" for entry in evaluation_results]
+ground_truth_texts = [entry["ground_truth"] for entry in evaluation_results]
+
+
 # Function to compute Mean Reciprocal Rank (MRR)
-def mean_reciprocal_rank(y_pred):
-    ranks = [1 / (i + 1) for i, val in enumerate(y_pred) if val == 1]
-    return np.mean(ranks) if ranks else 0
+# Load SBERT Model for embedding computation
+sbert_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+def semantic_mrr(retrieved_docs, ground_truth, threshold=0.5):
+    reciprocal_ranks = []
+    
+    for docs, gt in zip(retrieved_docs, ground_truth):
+        if not docs or not gt:
+            reciprocal_ranks.append(0.0)
+            continue
+
+        # Compute embeddings
+        retrieved_embeddings = sbert_model.encode([str(doc) for doc in docs], convert_to_tensor=True)
+        gt_embedding = sbert_model.encode([str(gt)], convert_to_tensor=True)
+
+        # Compute cosine similarity
+        similarities = cosine_similarity(retrieved_embeddings.cpu().numpy(), gt_embedding.cpu().numpy())
+
+
+        for rank, score in enumerate(similarities[:, 0]):
+            if score >= threshold:
+                reciprocal_ranks.append(1.0 / (rank + 1))
+                break
+        else:
+            reciprocal_ranks.append(0.0)  # No relevant document found
+
+    return np.mean(reciprocal_ranks)
+
+
+
 
 # Function to compute Mean Average Precision (MAP)
 def mean_average_precision(y_true, y_pred):
@@ -86,26 +148,40 @@ def mean_average_precision(y_true, y_pred):
     return np.mean(ap_scores) if ap_scores else 0
 
 # Compute MRR and MAP
-mrr = mean_reciprocal_rank(y_pred)
+
+mrr = semantic_mrr(retrieved_texts, ground_truth_texts)
 map_score = mean_average_precision(y_true, y_pred)
 
-# Save final metrics
+# Compute BERTScore
+bert_precision, bert_recall, bert_f1 = bert_score.score(
+    cands=[entry["generated"] for entry in evaluation_results],
+    refs=[entry["ground_truth"] for entry in evaluation_results],
+    model_type="microsoft/deberta-large-mnli",  # Fully pre-trained model
+    lang="en",
+    rescale_with_baseline=True
+)
+
 metrics_output = {
     "precision": precision,
     "recall": recall,
     "f1_score": f1,
     "mrr": mrr,
-    "map": map_score
+    "map": map_score,
+    "bert_precision": bert_precision.mean().item(),
+    "bert_recall": bert_recall.mean().item(),
+    "bert_f1": bert_f1.mean().item()
 }
 
 with open(output_metrics_file, "w", encoding="utf-8") as f:
     json.dump(metrics_output, f, indent=4)
 
-print("\n🔹 Final Evaluation Metrics:")
+print(f"🔹 Final Evaluation Metrics:")
 print(f"✅ Precision: {precision:.4f}")
 print(f"✅ Recall: {recall:.4f}")
 print(f"✅ F1-score: {f1:.4f}")
 print(f"✅ Mean Reciprocal Rank (MRR): {mrr:.4f}")
 print(f"✅ Mean Average Precision (MAP): {map_score:.4f}")
-
-print(f"\n📂 Metrics saved to {output_metrics_file}")
+print(f"✅ BERT Precision: {metrics_output['bert_precision']:.4f}")
+print(f"✅ BERT Recall: {metrics_output['bert_recall']:.4f}")
+print(f"✅ BERT F1-score: {metrics_output['bert_f1']:.4f}")
+print(f"📂 Metrics saved to {output_metrics_file}")

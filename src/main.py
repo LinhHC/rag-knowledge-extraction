@@ -1,163 +1,192 @@
-from dotenv import load_dotenv
+# Standard Library Imports
 import os
-import json
-import random
+import hashlib
+import pickle
+import io
+from contextlib import redirect_stderr
+
+# Third-Party Imports
+from dotenv import load_dotenv
+from sentence_transformers import CrossEncoder
 from langchain import hub
+from langchain_chroma import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_community.document_loaders.pdf import PyPDFLoader
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.prompts import PromptTemplate
 from langchain.prompts import ChatPromptTemplate
-from langchain_core.documents import Document 
+from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.document_loaders.pdf import PyPDFLoader
 from operator import itemgetter
 
+# ----------------- CONFIGURATION & SETUP -----------------
+def load_environment():
+    """Loads API keys from .env file and sets environment variables."""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    load_dotenv(env_path)
+
+    os.environ['LANGCHAIN_TRACING_V2'] = 'true'
+    os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
+    os.environ['LANGSMITH_PROJECT'] = "RAG"
+    os.environ['LANGCHAIN_API_KEY'] = os.getenv("LANGCHAIN_API_KEY")
+    os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
 
 
-# Load API keys
-# Explicitly load the .env file from the outer directory
-env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
-load_dotenv(env_path)  # Ensure the correct path is used
-openai_api_key = os.getenv("OPENAI_API_KEY")
-langsmith_api_key = os.getenv("LANGCHAIN_API_KEY")
-
-# Enable Tracing
-os.environ['LANGCHAIN_TRACING_V2'] = 'true'
-os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
-os.environ['LANGSMITH_PROJECT'] ="RAG"
-os.environ['LANGCHAIN_API_KEY'] = langsmith_api_key
-os.environ['OPENAI_API_KEY'] = openai_api_key
-
-
-#### INDEXING ####
-
+# ----------------- DATA HANDLING -----------------
 def load_pdfs_from_folder(folder_path):
-    """Load PDFs from a specified folder."""
+    """Loads PDFs from a folder while suppressing warnings."""
+    print("\n📂 Extracting PDFs...")
     pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
     docs = []
+
     for pdf in pdf_files:
-        loader = PyPDFLoader(pdf)
-        docs.extend(loader.load())
+        with io.StringIO() as err, redirect_stderr(err):  # Suppress stderr output
+            loader = PyPDFLoader(pdf)
+            docs.extend(loader.load())
+
+    print(f"✅ Loaded {len(docs)} documents from {len(pdf_files)} PDFs.\n")
     return docs
 
-# Define dataset paths
-data_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 
-# Load PDFs from datasets
-docs = load_pdfs_from_folder(data_folder)
+def compute_dataset_hash(docs):
+    """Computes a hash for the dataset based on document contents."""
+    hasher = hashlib.md5()
+    for doc in docs:
+        hasher.update(doc.page_content.encode("utf-8"))
+    return hasher.hexdigest()
 
-# Split
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
-splits = text_splitter.split_documents(docs)
 
-# Embed
-vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings())
-retriever = vectorstore.as_retriever(search_kwargs={"k": 5})  
+# ----------------- CHROMA INDEXING & RETRIEVAL -----------------
+def setup_chroma_index(docs, chroma_cache_path):
+    """Sets up ChromaDB index, either loading from cache or rebuilding."""
+    print("🔍 Checking dataset integrity...")
+    current_hash = compute_dataset_hash(docs)
 
-#### MULTI-QUERY GENERATION ####
-# Multi Query: Different Perspectives
-query_expansion_prompt = ChatPromptTemplate.from_template(
-    """You are an AI language model assistant. Your task is to generate five 
-    different versions of the given user question to retrieve relevant documents from a vector 
-    database. By generating multiple perspectives on the user question, your goal is to help
-    the user overcome some of the limitations of the distance-based similarity search. 
-    Provide these alternative questions separated by newlines. 
-    Original question: {question}"""
-)
+    hash_file = os.path.join(chroma_cache_path, "dataset_hash.pkl")
+    vectorstore_path = os.path.join(chroma_cache_path, "chroma_db")
 
-generate_queries = (
-    query_expansion_prompt 
-    | ChatOpenAI(temperature=0) 
-    | StrOutputParser() 
-    | (lambda x: x.split("\n"))
-)
+    # Try to load previous hash
+    previous_hash = None
+    if os.path.exists(hash_file):
+        with open(hash_file, "rb") as f:
+            previous_hash = pickle.load(f)
 
-# Deduplication Function
+    print("🔍 Checking for existing ChromaDB cache...")
+    if os.path.exists(vectorstore_path) and current_hash == previous_hash:
+        print("✅ Using cached ChromaDB index.\n")
+        return Chroma(persist_directory=vectorstore_path, embedding_function=OpenAIEmbeddings())
+
+    # Rebuild index if dataset has changed
+    print("🔄 New data detected. Rebuilding ChromaDB index...\n")
+
+    # Split text into smaller chunks
+    print("📂 Splitting documents...")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=50)
+    splits = text_splitter.split_documents(docs)
+    print(f"✅ Split into {len(splits)} text chunks.\n")
+
+    # Embed and store in Chroma
+    print("⚡ Processing embeddings in ChromaDB...")
+    vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings(), persist_directory=vectorstore_path)
+    print("✅ ChromaDB index built successfully.\n")
+
+    # Save new dataset hash
+    os.makedirs(chroma_cache_path, exist_ok=True)
+    with open(hash_file, "wb") as f:
+        pickle.dump(current_hash, f)
+
+    return vectorstore
+
+
+# ----------------- MULTI-QUERY GENERATION -----------------
 def get_unique_union(documents: list[list[Document]]):
-    """Unique union of retrieved docs while keeping Document objects."""
+    """Removes duplicate documents from multi-query retrieval."""
     seen_contents = set()
     unique_docs = []
-    
+
     for sublist in documents:
         for doc in sublist:
             if isinstance(doc, Document) and doc.page_content not in seen_contents:
                 seen_contents.add(doc.page_content)
                 unique_docs.append(doc)
-    
+
     return unique_docs
 
-#### RETRIEVAL and GENERATION ####
-retrieval_chain = generate_queries | retriever.map() | get_unique_union
 
-# Answer Generation Prompt
-response_prompt = ChatPromptTemplate.from_template(
-    """Answer the following question based on this context:
+def create_query_pipeline():
+    """Creates a query expansion and retrieval pipeline."""
+    query_expansion_prompt = ChatPromptTemplate.from_template(
+        """You are an AI assistant. Your task is to generate three
+        different versions of the given user question to retrieve relevant documents from a vector 
+        database. Provide these alternative questions separated by newlines. 
+        Original question: {question}"""
+    )
 
-    {context}
-
-    Question: {question}"""
-)
-
-llm = ChatOpenAI(temperature=0)
-
-rag_chain = (
-    {"context": retrieval_chain, "question": itemgetter("question")}
-    | response_prompt
-    | llm
-    | StrOutputParser()
-)
-
-# Question
-# response = rag_chain.invoke("What types of gestures are there?")
-# print(response)
+    return (
+        query_expansion_prompt
+        | ChatOpenAI(temperature=0)
+        | StrOutputParser()
+        | (lambda x: x.split("\n"))
+    )
 
 
-#### SAVE RESULTS FOR EVALUATION ####
-results_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "results")
-os.makedirs(results_folder, exist_ok=True)
+# ----------------- RETRIEVAL & RESPONSE GENERATION -----------------
+def generate_response(rag_chain, user_query):
+    """Handles user queries and generates responses."""
+    print(f"\n🔍 Query received: {user_query}")
+    print("🔄 Generating alternative queries...")
+    print("📂 Retrieving relevant documents...\n")
 
-# Load evaluation data
-eval_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "evaluation/lecture_gt.json")
-with open(eval_file, "r", encoding="utf-8") as f:
-    eval_data = json.load(f)
+    response = rag_chain.invoke({"question": user_query})
 
-# Extract the list of Q&A pairs
-eval_questions = [{"question": item["question"], "answers": [item["answer"]]} for item in eval_data]
-
-# Sample a subset of questions for evaluation
-num_samples = 100  
-eval_questions = random.sample(eval_questions, min(num_samples, len(eval_questions)))
-num_questions = len(eval_questions)
-
-# Run and save results for DUDE
-evaluation_results = []
-for idx, sample in enumerate(eval_questions, start=1):
-    query = sample.get("question", "No question found")  
-    answers = sample.get("answers", [])  
-
-    if isinstance(answers, list) and answers:  
-        ground_truth = " ".join(answers)
-    else:
-        ground_truth = "No answer available"
-
-    print(f"Processing query {idx}/{num_questions}...")
-    
-    retrieved_docs = retrieval_chain.invoke({"question": query})
-    response = rag_chain.invoke({"question": query, "context": "\n".join([doc.page_content for doc in retrieved_docs])})
- 
-    evaluation_results.append({
-    "query": query,
-    "retrieved": [doc.page_content for doc in retrieved_docs],
-    "generated": response,
-    "ground_truth": ground_truth
-})
+    print("⚡ Processing response...\n")
+    print(f"📢 Answer: {response}\n")
 
 
-# Save intermediate results for evaluation script
-results_file = os.path.join(results_folder, "evaluation_results.json")
-with open(results_file, "w", encoding="utf-8") as f:
-    json.dump(evaluation_results, f, indent=4)
+# ----------------- MAIN EXECUTION -----------------
+def main():
+    """Main function to initialize and run the pipeline."""
+    load_environment()
 
-print(f"Intermediate results saved to {results_file}. Run evaluation.py for scoring.")
+    # Define dataset paths
+    base_path = os.path.dirname(os.path.dirname(__file__))
+    data_folder = os.path.join(base_path, "data")
+    chroma_cache_path = os.path.join(base_path, "chroma_cache")
+
+    # Load PDFs
+    docs = load_pdfs_from_folder(data_folder)
+
+    # Setup ChromaDB
+    vectorstore = setup_chroma_index(docs, chroma_cache_path)
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+    # Create query expansion and retrieval pipeline
+    query_pipeline = create_query_pipeline()
+    retrieval_chain = query_pipeline | retriever.map() | get_unique_union
+
+    # Answer Generation
+    response_prompt = ChatPromptTemplate.from_template(
+        """Answer the following question based on this context:
+
+        {context}
+
+        Question: {question}"""
+    )
+
+    llm = ChatOpenAI(temperature=0)
+
+    rag_chain = (
+        {"context": retrieval_chain, "question": itemgetter("question")}
+        | response_prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # Process User Query
+    user_query = "What is machine learning?"
+    generate_response(rag_chain, user_query)
+
+
+if __name__ == "__main__":
+    main()
