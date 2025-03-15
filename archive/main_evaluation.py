@@ -3,14 +3,11 @@ import os
 import json
 import random
 from sentence_transformers import CrossEncoder
-from langchain import hub
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.document_loaders.pdf import PyPDFLoader
-from langchain_core.prompts import PromptTemplate
 from langchain.prompts import ChatPromptTemplate
 from langchain_core.documents import Document 
 from operator import itemgetter

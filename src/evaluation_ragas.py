@@ -1,10 +1,15 @@
 import os
 import json
 import numpy as np 
+from langchain.evaluation import load_evaluator
+from langchain_openai import ChatOpenAI
 from rag_pipeline import load_environment, load_pdfs_from_folder, create_rag_pipeline
 from ragas import evaluate
 from ragas.metrics import context_precision, answer_relevancy, faithfulness, answer_correctness
 from datasets import Dataset
+from sklearn.metrics import precision_score, recall_score, f1_score, average_precision_score
+# from rankeval.metrics import MAP, MRR
+# from rankeval.metrics import Precision, Recall, F1
 
 # ----------------- LOAD EVALUATION DATA -----------------
 def load_evaluation_data(json_path):
@@ -19,64 +24,65 @@ def load_evaluation_data(json_path):
     
     return user_queries, ground_truth_answers
 
-def compute_retrieval_metrics(eval_samples):
-    """Computes Precision, Recall, F1-score, MAP, and MRR for retrieval performance."""
+def compute_retrieval_metrics(eval_samples, similarity_threshold=0.7):
+    """Computes Precision, Recall, F1-score, MAP, and MRR using precomputed similarity scores from ChromaDB."""
     
-    total_precision = []
-    total_recall = []
-    total_f1 = []
-    total_ap = []  # Average Precision per query
-    total_rr = []  # Reciprocal Rank per query
+    eval_results = []
+    relevance_scores = []
     
+    context_qa_evaluator = load_evaluator("context_qa", llm=ChatOpenAI(temperature=0))
+
     for sample in eval_samples:
-        ground_truth = sample["ground_truth"]
-        retrieved_docs = sample["retrieved_contexts"]
+        # ground_truth = sample["ground_truth"]
+        # retrieved_docs = sample["retrieved_contexts"]  # List of retrieved doc contents
+        # response = sample["response"]
 
-        # Binary relevance (1 if relevant, 0 otherwise)
-        relevance = [1 if ground_truth in doc else 0 for doc in retrieved_docs]
-
-        retrieved_relevant = sum(relevance)  # Count how many retrieved docs are relevant
-        total_relevant = 1  # Assuming one correct ground truth per query
+        result = context_qa_evaluator.evaluate_strings(
+            prediction="\n".join(sample["retrieved_contexts"]),  # Retrieved documents
+            reference=sample["ground_truth"],  # Ground truth answer
+            input=sample["question"]  # Original question
+        ) 
         
-        precision = retrieved_relevant / len(retrieved_docs) if retrieved_docs else 0
-        recall = retrieved_relevant / total_relevant
-        f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        eval_results.append({
+            "query": sample["question"],
+            "retrieval_score": result["score"],
+            "feedback": result.get("feedback", "No feedback provided")
+        })
         
-        # Mean Average Precision (MAP)
-        ap = sum((sum(relevance[:i+1]) / (i+1)) for i in range(len(relevance)) if relevance[i]) / total_relevant if total_relevant > 0 else 0
+        # Store binary relevance for MAP & MRR calculations
+        retrieved_scores = [1 if result["score"] >= similarity_threshold else 0 for _ in sample["retrieved_contexts"]]
+        relevance_scores.append(retrieved_scores)
         
-        # Mean Reciprocal Rank (MRR)
-        rr = next((1 / (i+1) for i, rel in enumerate(relevance) if rel), 0)
+    ### COMPUTE STANDARD METRICS (Precision, Recall, F1, MRR, MAP) ###
 
-        # Store metrics
-        total_precision.append(precision)
-        total_recall.append(recall)
-        total_f1.append(f1)
-        total_ap.append(ap)
-        total_rr.append(rr)
+    # Extract true labels and predictions
+    y_true = [1 if entry["ground_truth"] else 0 for entry in eval_samples]
+    y_pred = [1 if entry["retrieval_score"] > 0 else 0 for entry in eval_results]
 
-    # Compute averages
-    avg_precision = sum(total_precision) / len(total_precision)
-    avg_recall = sum(total_recall) / len(total_recall)
-    avg_f1 = sum(total_f1) / len(total_f1)
-    map_score = sum(total_ap) / len(total_ap)
-    mrr_score = sum(total_rr) / len(total_rr)
-
+    # Compute Precision, Recall, and F1-score
+    precision = precision_score(y_true, y_pred, zero_division=0)
+    recall = recall_score(y_true, y_pred, zero_division=0)
+    f1 = f1_score(y_true, y_pred, zero_division=0)
+    
+    # rank_eval_precision = Precision()(relevance_scores)
+    # rank_eval_recall = Recall()(relevance_scores)
+    # rank_eval_f1 = F1()(relevance_scores)
+    # map_score = MAP()(relevance_scores)
+    # mrr_score = MRR()(relevance_scores)    
+        
     # Print Results
-    print("\n📊 Retrieval Metrics:")
-    print(f"🔹 Precision: {avg_precision:.4f}")
-    print(f"🔹 Recall: {avg_recall:.4f}")
-    print(f"🔹 F1-score: {avg_f1:.4f}")
-    print(f"🔹 MAP (Mean Average Precision): {map_score:.4f}")
-    print(f"🔹 MRR (Mean Reciprocal Rank): {mrr_score:.4f}")
+    print("\n📊 Retrieval Metrics (Using ChromaDB Similarity Scores):")
+    print(f"🔹 Precision: {precision:.4f}")
+    print(f"🔹 Recall: {recall:.4f}")
+    print(f"🔹 F1-score: {f1:.4f}")
+    
+    # print(f"🔹 Rank_Eval_Precision: {rank_eval_precision:.4f}")
+    # print(f"🔹 Rank_Eval_Recall: {rank_eval_recall:.4f}")
+    # print(f"🔹 Rank_Eval_F1-score: {rank_eval_f1:.4f}")
+    
+    # print(f"🔹 MAP (Mean Average Precision): {map_score:.4f}")
+    # print(f"🔹 MRR (Mean Reciprocal Rank): {mrr_score:.4f}")
 
-    return {
-        "precision": avg_precision,
-        "recall": avg_recall,
-        "f1": avg_f1,
-        "MAP": map_score,
-        "MRR": mrr_score
-    }
 
 
 def run_evaluation(rag_chain, user_queries, ground_truth_answers, retriever):
@@ -118,9 +124,8 @@ def run_evaluation(rag_chain, user_queries, ground_truth_answers, retriever):
     print(f"🔹 Answer Correctness: {answer_correctness_score:.4f}")
     
     # Run Retriever Evaluation
-    retrieval_metrics = compute_retrieval_metrics(eval_samples)
-    
-    return retrieval_metrics, ragas_results
+    compute_retrieval_metrics(eval_samples)
+
 
 def main():
     
