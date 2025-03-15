@@ -22,7 +22,7 @@ def main():
     print(f"📖 Generating exam on topic: {topic}...")
 
     exam_chain = generate_exam_from_topic(docs, topic)
-    exam_output = exam_chain.invoke({"topic": topic})
+    exam_output = exam_chain.invoke(topic)
 
     save_exam_to_json(exam_output, topic)
 

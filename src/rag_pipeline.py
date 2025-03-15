@@ -12,6 +12,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda
 from langchain.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.document_loaders.pdf import PyPDFLoader
@@ -23,9 +24,9 @@ def load_environment():
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
     load_dotenv(env_path)
 
-    os.environ['LANGCHAIN_TRACING_V2'] = 'false'
+    os.environ['LANGCHAIN_TRACING_V2'] = 'true'
     os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
-    os.environ['LANGSMITH_PROJECT'] = "RAG"
+    os.environ['LANGSMITH_PROJECT'] = "RAG_exam_generator"
     os.environ['LANGCHAIN_API_KEY'] = os.getenv("LANGCHAIN_API_KEY")
     os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
 
@@ -76,7 +77,7 @@ def setup_chroma_index(docs, chroma_cache_path):
 
     # Split text into smaller chunks
     print("📂 Splitting documents...")
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=50)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
     splits = text_splitter.split_documents(docs)
     print(f"✅ Split into {len(splits)} text chunks.\n")
 
@@ -94,179 +95,151 @@ def setup_chroma_index(docs, chroma_cache_path):
 
 # ----------------- QUERY EXPANSION & RERANKING -----------------
 def get_unique_union(documents):
-    """Removes duplicate documents from multi-query retrieval."""
+    """Removes duplicate documents from multi-query retrieval while maintaining original order."""
     seen_contents = set()
     unique_docs = []
 
-    for sublist in documents:
-        for doc in sublist:
-            if isinstance(doc, Document) and doc.page_content not in seen_contents:
-                seen_contents.add(doc.page_content)
+    for doc in documents: 
+        if isinstance(doc, Document):
+            content = doc.page_content.strip() 
+            if content and content not in seen_contents:
+                seen_contents.add(content)
                 unique_docs.append(doc)
 
     return unique_docs
 
-def create_multi_query_pipeline(prompt):
-    """Creates a query expansion and retrieval pipeline."""
 
-    return (
-        prompt
-        | ChatOpenAI(temperature=0)
-        | StrOutputParser()
-        | (lambda x: x.split("\n"))
-    )
+def normalize_scores(scores):
+    """Normalizes CrossEncoder scores to a range of 0 to 1."""
+    min_score = min(scores)
+    max_score = max(scores)
 
-def rerank_with_crossencoder(input_data, exam=False):
-    """Reranks retrieved documents with Crossencoder"""
-    if exam:
-        print("🔄 Reranking the retrieved documents...\n")
-        query = input_data["topic"]
-        documents = [doc.page_content for doc in input_data["documents"]]
+    # Avoid division by zero
+    if max_score == min_score:
+        return [0.5] * len(scores)
 
-        # Load with croessencoder
-        reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-12-v2")
+    return [(score - min_score) / (max_score - min_score) for score in scores]
 
-        pairs = [(query, doc) for doc in documents]
-        scores = reranker.predict(pairs)
-        sorted_docs = sorted(zip(input_data["documents"], scores), key=lambda x: x[1], reverse=True)
-
-        return {"topic": query, "documents": [doc for doc, _ in sorted_docs[:5]]}
+def rerank_with_crossencoder(input_data, threshold=0.6):
+    """Reranks retrieved documents with Crossencoder and returns only those above the threshold."""
     
-    print("🔄 Reranking the retrieved documents...\n")
-    query = input_data["question"]
-    documents = [doc.page_content for doc in input_data["documents"]]
+    query_key = "topic"  # Change to "question" if using for Q&A
+    if query_key not in input_data or "documents" not in input_data:
+        print("❌ Error: Missing 'topic/question' or 'documents' in input_data.")
+        return {"documents": []}  
 
-    # Load with croessencoder
+    query = input_data[query_key]
+    documents = input_data["documents"]
+
+    if not documents:
+        print(f"❌ No documents retrieved for query: {query}")
+        return {"documents": []}  
+
+    print(f"🔄 Reranking {len(documents)} retrieved documents for query: {query}")
+
+    # Extract text content for ranking
+    document_texts = [doc.page_content if isinstance(doc, Document) else str(doc) for doc in documents]
+
+    if not document_texts:
+        print("❌ No valid document texts available for reranking.")
+        return {"documents": []}
+
+    # Load CrossEncoder model
     reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-12-v2")
 
-    pairs = [(query, doc) for doc in documents]
+    # Prepare query-document pairs
+    pairs = [(query, doc) for doc in document_texts]
+
+    if not pairs:
+        print("❌ No valid query-document pairs for reranking.")
+        return {"documents": []}
+
+    # Compute similarity scores
     scores = reranker.predict(pairs)
-    sorted_docs = sorted(zip(input_data["documents"], scores), key=lambda x: x[1], reverse=True)
 
-    return {"question": query, "documents": [doc for doc, _ in sorted_docs[:5]]}
+    # Normalize scores using the existing function
+    normalized_scores = normalize_scores(scores)
 
-# ----------------- RAG PIPELINE CREATION -----------------
-def create_rag_pipeline(docs):
-    """Creates and returns the RAG pipeline."""
-    vectorstore = setup_chroma_index(docs, "chroma_cache")
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-    
-    multi_query_prompt = ChatPromptTemplate.from_template(
-            """You are an AI assistant. Your task is to generate three
-            different versions of the given user question to retrieve relevant documents from a vector 
-            database. Provide these alternative questions separated by newlines. 
-            Original question: {question}"""
-        )
-    
-    query_pipeline = create_multi_query_pipeline(multi_query_prompt)
-    rerank_runnable = RunnableLambda(rerank_with_crossencoder)
+    # Sort documents by descending scores and filter by threshold
+    sorted_docs = sorted(zip(documents, normalized_scores), key=lambda x: x[1], reverse=True)
+    filtered_docs = [doc for doc, score in sorted_docs if score >= threshold] 
 
-    retrieval_chain = (
-        query_pipeline
-        | retriever.map()
-        | get_unique_union
-        | (lambda x: {"question": x["question"], "documents": x["documents"]} if isinstance(x, dict) else {"question": "", "documents": x})
-        | rerank_runnable
-        | (lambda x: x["documents"])
-    )
 
-    response_prompt = ChatPromptTemplate.from_template(
-        """You are an AI assistant answering questions based on the provided context. 
-        Follow these instructions carefully:
-        
-        1️⃣ **Use Only the Top-Ranked Retrieved Context**: Prioritize the most relevant content first.
-        2️⃣ **Do Not Add Any External Knowledge**: If the answer is not in the context, say: "The provided information does not contain an answer."
-        3️⃣ **Be Clear and Concise**: Answer directly while keeping the response easy to understand.
-        4️⃣ **Cite the Most Relevant Context**: Explicitly reference key points from the best-ranked documents.
-        
-        🔹 **Top-Ranked Retrieved Context**:
-        {context}
-        
-        🔹 **Question**: {question}
-        
-        ✏️ **Your Answer**:
-        """
-    )
+    print(f"✅ {len(filtered_docs)} / {len(documents)} documents passed the threshold.")
+
+    return {"documents": filtered_docs} 
 
 
 
-    llm = ChatOpenAI(temperature=0)
 
-    rag_chain = (
-        {"context": retrieval_chain, "question": itemgetter("question")}
-        | response_prompt
-        | llm
-        | StrOutputParser()
-    )
-
-    return rag_chain, retriever
 
 # ----------------- EXAM PIPELINE -----------------
-def retrieve_docs_for_topic(docs, topic):
-    """Retrieves relevant documents based on a given topic using a structured RAG pipeline."""
-    print(f"📖 Retrieving documents related to the topic: {topic}...")
+
+def format_docs(docs):
+    """Ensure proper formatting even if input is empty or incorrectly structured."""
+    if not docs:  # Handle empty input
+        print("❌ Error: No documents to format.")
+        return ""
+
+    if isinstance(docs, list) and docs and isinstance(docs[0], tuple):  
+        # Extract only the document part from (doc, score) tuples
+        docs = [doc for doc, _ in docs]  
+
+    if isinstance(docs, list) and docs and isinstance(docs[0], str):  
+        return "\n\n".join(docs)  
+
+    if isinstance(docs, list) and docs and hasattr(docs[0], "page_content"):  
+        return "\n\n".join(doc.page_content for doc in docs)  
+
+    print("❌ Error: Unexpected document format. Returning empty context.")
+    return ""  # Return empty string instead of failing
+
+
+
+
+
+def expand_query(topic):
+    """Expands a short topic into multiple detailed queries."""
+    query_expansion_prompt = ChatPromptTemplate.from_template(
+        """Expand the given topic into multiple detailed queries to improve document retrieval. 
     
-    vectorstore = setup_chroma_index(docs, "chroma_cache")
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-    # Custom retrieval prompt tailored for topics
-    topic_retrieval_prompt = ChatPromptTemplate.from_template(
-        """You are an AI assistant retrieving relevant documents for exam creation. 
-        Given the topic below, find and return the **most relevant** documents to generate an exam.
-        
         **Topic:** {topic}
         
-        Only return documents that are directly related to this topic. Ensure that the retrieved content provides clear 
-        and factual information useful for generating exam questions."""
+        Generate **3 alternative queries** that provide different perspectives on the topic.
+        The queries should be formulated to retrieve documents covering:
+        1️⃣ Core concepts of the topic.
+        2️⃣ Practical applications of the topic.
+        3️⃣ Challenges or limitations related to the topic.
+        
+        Provide the queries separated by newlines."""
     )
+
+    query_expander = query_expansion_prompt | ChatOpenAI(temperature=0) | StrOutputParser()
     
-    query_pipeline = create_multi_query_pipeline(topic_retrieval_prompt)
-    # Apply structured retrieval pipeline (similar to standard RAG)
-    rerank_runnable = RunnableLambda(lambda input_data: rerank_with_crossencoder(input_data, exam=True))
-
-
-    topic_query_pipeline = (
-        query_pipeline
-        | retriever.map()
-        | get_unique_union
-        | (lambda x: {"topic": x["topic"], "documents": x["documents"]} if isinstance(x, dict) else {"topic": "", "documents": x})
-        | rerank_runnable
-        | (lambda x: x["documents"])
-    )
-    
-    return topic_query_pipeline
-
+    expanded_queries = query_expander.invoke({"topic": topic})  # Expands input
+    return expanded_queries.split("\n")  # Convert into a list of queries
 
 def generate_exam_from_topic(docs, topic):
     """Generates an exam based on the given topic using retrieved documents."""
     
     print(f"📖 Retrieving documents related to the topic: {topic}...")
         
+    expanded_queries = expand_query(topic)  # Expand query
+
     vectorstore = setup_chroma_index(docs, "chroma_cache")
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-    # Custom retrieval prompt tailored for topics
-    topic_retrieval_prompt = ChatPromptTemplate.from_template(
-        """You are an AI assistant retrieving relevant documents for exam creation. 
-        Given the topic below, find and return the **most relevant** documents to generate an exam.
-        
-        **Topic:** {topic}
-        
-        Only return documents that are directly related to this topic. Ensure that the retrieved content provides clear 
-        and factual information useful for generating exam questions."""
-    )
-    
-    query_pipeline = create_multi_query_pipeline(topic_retrieval_prompt)
-    # Apply structured retrieval pipeline (similar to standard RAG)
-    rerank_runnable = RunnableLambda(lambda input_data: rerank_with_crossencoder(input_data, exam=True))
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 7})
 
+    print(f"🔍 Retrieving documents for expanded queries...")
 
-    topic_query_pipeline = (
-        query_pipeline
-        | retriever.map()
-        | get_unique_union
-        | (lambda x: {"topic": x["topic"], "documents": x["documents"]} if isinstance(x, dict) else {"topic": "", "documents": x})
-        | rerank_runnable
-        | (lambda x: x["documents"])
-    )
+    retrieved_docs = []
+    for query in expanded_queries:
+        docs = retriever.invoke(query)
+        retrieved_docs.extend(docs)
+        
+    retrieved_docs = get_unique_union(retrieved_docs) 
+  
+
+    print(f"✅ Retrieved {len(retrieved_docs)} unique documents after multi-query expansion.")
 
     exam_prompt = ChatPromptTemplate.from_template(
         """You are an AI assistant creating an exam on the topic: **{topic}**.
@@ -325,18 +298,22 @@ def generate_exam_from_topic(docs, topic):
         Generate a total of **15 questions**, ensuring they are **clear, unbiased, and related to the topic.**"""
     )
 
-
-
     
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0)  
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)  
     
-    # ✅ Fix: Ensure `topic` is passed into the prompt
+    
     exam_chain = (
-        {"context": topic_query_pipeline, "topic": itemgetter("topic")}  
+        {"context": RunnableLambda(lambda _: retrieved_docs) 
+                    | RunnableLambda(lambda x: {"documents": x, "topic": topic}) 
+                    | RunnableLambda(rerank_with_crossencoder) 
+                    | (lambda x: x["documents"])  # ✅ FIX: Extract only "documents" from dict
+                    | format_docs,
+        "topic": RunnablePassthrough()}  
         | exam_prompt
         | llm
         | StrOutputParser()
     )
+
 
     return exam_chain
 
@@ -347,7 +324,7 @@ def save_exam_to_json(exam_output, topic):
     
     # Debug: Check if the LLM generated any output
     if not exam_output or exam_output.strip() == "":
-        print("❌ Error: The LLM did not generate any output. No file will be saved.")
+        print("Error: The LLM did not generate any output. No file will be saved.")
         return  # Exit early if output is empty
     
     # Ensure the directory exists
@@ -369,7 +346,7 @@ def save_exam_to_json(exam_output, topic):
     file_path = os.path.join(output_dir, filename)
     
     try:
-        # Fix: Ensure `exam_output` is properly formatted as a JSON list
+        # Ensure `exam_output` is properly formatted as a JSON list
         if isinstance(exam_output, str):
             try:
                 exam_data = json.loads(exam_output)  # Convert string to Python dictionary/list
@@ -386,8 +363,8 @@ def save_exam_to_json(exam_output, topic):
         if isinstance(exam_data, dict):
             exam_data = [exam_data]  # Convert single dict to list
 
-        # Debug: Print processed data before saving
-        print(f"✅ Processed JSON Data:\n{json.dumps(exam_data, indent=4)}")
+       
+        print(f"Processed JSON Data:\n{json.dumps(exam_data, indent=4)}")
 
         # Check if data is valid before writing
         if not exam_data:
