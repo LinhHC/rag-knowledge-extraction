@@ -26,7 +26,5 @@ def main():
 
     save_exam_to_json(exam_output, topic)
 
-    #print(f"✅ Exam saved successfully")
-
 if __name__ == "__main__":
     main()

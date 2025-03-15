@@ -93,7 +93,8 @@ def setup_chroma_index(docs, chroma_cache_path):
 
     return vectorstore
 
-# ----------------- QUERY EXPANSION & RERANKING -----------------
+# ----------------- DOCUMENT FORMATTING -----------------
+
 def get_unique_union(documents):
     """Removes duplicate documents from multi-query retrieval while maintaining original order."""
     seen_contents = set()
@@ -108,6 +109,48 @@ def get_unique_union(documents):
 
     return unique_docs
 
+def format_docs(docs):
+    """Ensure proper formatting even if input is empty or incorrectly structured."""
+    if not docs:  # Handle empty input
+        print("❌ Error: No documents to format.")
+        return ""
+
+    if isinstance(docs, list) and docs and isinstance(docs[0], tuple):  
+        # Extract only the document part from (doc, score) tuples
+        docs = [doc for doc, _ in docs]  
+
+    if isinstance(docs, list) and docs and isinstance(docs[0], str):  
+        return "\n\n".join(docs)  
+
+    if isinstance(docs, list) and docs and hasattr(docs[0], "page_content"):  
+        return "\n\n".join(doc.page_content for doc in docs)  
+
+    print("❌ Error: Unexpected document format. Returning empty context.")
+    return ""  # Return empty string instead of failing
+
+
+# ----------------- QUERY EXPANSION & RERANKING -----------------
+
+def expand_query(topic):
+    """Expands a short topic into multiple detailed queries."""
+    query_expansion_prompt = ChatPromptTemplate.from_template(
+        """Expand the given topic into multiple detailed queries to improve document retrieval. 
+    
+        **Topic:** {topic}
+        
+        Generate **3 alternative queries** that provide different perspectives on the topic.
+        The queries should be formulated to retrieve documents covering:
+        1️⃣ Core concepts of the topic.
+        2️⃣ Practical applications of the topic.
+        3️⃣ Challenges or limitations related to the topic.
+        
+        Provide the queries separated by newlines."""
+    )
+
+    query_expander = query_expansion_prompt | ChatOpenAI(temperature=0) | StrOutputParser()
+    
+    expanded_queries = query_expander.invoke({"topic": topic})  # Expands input
+    return expanded_queries.split("\n")  # Convert into a list of queries
 
 def normalize_scores(scores):
     """Normalizes CrossEncoder scores to a range of 0 to 1."""
@@ -171,53 +214,7 @@ def rerank_with_crossencoder(input_data, threshold=0.6):
 
 
 
-
-
 # ----------------- EXAM PIPELINE -----------------
-
-def format_docs(docs):
-    """Ensure proper formatting even if input is empty or incorrectly structured."""
-    if not docs:  # Handle empty input
-        print("❌ Error: No documents to format.")
-        return ""
-
-    if isinstance(docs, list) and docs and isinstance(docs[0], tuple):  
-        # Extract only the document part from (doc, score) tuples
-        docs = [doc for doc, _ in docs]  
-
-    if isinstance(docs, list) and docs and isinstance(docs[0], str):  
-        return "\n\n".join(docs)  
-
-    if isinstance(docs, list) and docs and hasattr(docs[0], "page_content"):  
-        return "\n\n".join(doc.page_content for doc in docs)  
-
-    print("❌ Error: Unexpected document format. Returning empty context.")
-    return ""  # Return empty string instead of failing
-
-
-
-
-
-def expand_query(topic):
-    """Expands a short topic into multiple detailed queries."""
-    query_expansion_prompt = ChatPromptTemplate.from_template(
-        """Expand the given topic into multiple detailed queries to improve document retrieval. 
-    
-        **Topic:** {topic}
-        
-        Generate **3 alternative queries** that provide different perspectives on the topic.
-        The queries should be formulated to retrieve documents covering:
-        1️⃣ Core concepts of the topic.
-        2️⃣ Practical applications of the topic.
-        3️⃣ Challenges or limitations related to the topic.
-        
-        Provide the queries separated by newlines."""
-    )
-
-    query_expander = query_expansion_prompt | ChatOpenAI(temperature=0) | StrOutputParser()
-    
-    expanded_queries = query_expander.invoke({"topic": topic})  # Expands input
-    return expanded_queries.split("\n")  # Convert into a list of queries
 
 def generate_exam_from_topic(docs, topic):
     """Generates an exam based on the given topic using retrieved documents."""
@@ -306,7 +303,7 @@ def generate_exam_from_topic(docs, topic):
         {"context": RunnableLambda(lambda _: retrieved_docs) 
                     | RunnableLambda(lambda x: {"documents": x, "topic": topic}) 
                     | RunnableLambda(rerank_with_crossencoder) 
-                    | (lambda x: x["documents"])  # ✅ FIX: Extract only "documents" from dict
+                    | (lambda x: x["documents"])  
                     | format_docs,
         "topic": RunnablePassthrough()}  
         | exam_prompt
@@ -375,7 +372,7 @@ def save_exam_to_json(exam_output, topic):
         with open(file_path, "w", encoding="utf-8") as file:
             json.dump(exam_data, file, indent=4, ensure_ascii=False)
         
-        print(f"Exam successfully saved as {file_path}")
+        print(f"✅ Exam successfully saved as {file_path}")
 
     except Exception as e:
         print(f"Unexpected error while saving JSON: {e}")
