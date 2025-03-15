@@ -1,0 +1,212 @@
+[
+    {
+        "Question_ID": 1,
+        "Question": "What is Machine Learning primarily concerned with?",
+        "Answer_Options": {
+            "A": "Developing static program instructions",
+            "B": "Designing and developing algorithms based on empirical data",
+            "C": "Creating databases for storing large datasets",
+            "D": "Programming languages development"
+        },
+        "Correct_Answer": {
+            "B": "Designing and developing algorithms based on empirical data"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 2,
+        "Question": "Which of the following is NOT a category of Machine Learning problems?",
+        "Answer_Options": {
+            "A": "Supervised Learning",
+            "B": "Unsupervised Learning",
+            "C": "Reinforcement Learning",
+            "D": "Recursive Learning"
+        },
+        "Correct_Answer": {
+            "D": "Recursive Learning"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 3,
+        "Question": "What is the main concept behind Deep Learning algorithms?",
+        "Answer_Options": {
+            "A": "Automating the extraction of representations from data",
+            "B": "Improving the speed of data processing",
+            "C": "Reducing the cost of data storage",
+            "D": "Enhancing the security of data"
+        },
+        "Correct_Answer": {
+            "A": "Automating the extraction of representations from data"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 4,
+        "Question": "According to Mitchell (1997), what is the goal of Machine Learning?",
+        "Answer_Options": {
+            "A": "To store large amounts of data efficiently",
+            "B": "To generalize experience to improve performance on a task",
+            "C": "To create visually appealing data representations",
+            "D": "To increase the computational power of machines"
+        },
+        "Correct_Answer": {
+            "B": "To generalize experience to improve performance on a task"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 5,
+        "Question": "Which type of learning problem involves the algorithm finding structure in its input without given labels?",
+        "Answer_Options": {
+            "A": "Supervised Learning",
+            "B": "Semi-Supervised Learning",
+            "C": "Unsupervised Learning",
+            "D": "Reinforcement Learning"
+        },
+        "Correct_Answer": {
+            "C": "Unsupervised Learning"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 6,
+        "Question": "What is a major focus of Machine Learning research?",
+        "Answer_Options": {
+            "A": "Manual data entry techniques",
+            "B": "Learning to recognize patterns and make decisions based on data",
+            "C": "Developing non-digital algorithms",
+            "D": "Studying historical data without modern technology"
+        },
+        "Correct_Answer": {
+            "B": "Learning to recognize patterns and make decisions based on data"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 7,
+        "Question": "What does Supervised Learning specifically require?",
+        "Answer_Options": {
+            "A": "No labels or target values",
+            "B": "Training data with input and corresponding target vectors",
+            "C": "Data without any patterns or structures",
+            "D": "Algorithms that do not adapt based on input data"
+        },
+        "Correct_Answer": {
+            "B": "Training data with input and corresponding target vectors"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 8,
+        "Question": "What is the primary goal of Reinforcement Learning?",
+        "Answer_Options": {
+            "A": "To follow strictly static program instructions",
+            "B": "To find suitable actions to take in an environment to maximize a notion of cumulative reward",
+            "C": "To reduce the need for data in making decisions",
+            "D": "To supervise the learning process of machines"
+        },
+        "Correct_Answer": {
+            "B": "To find suitable actions to take in an environment to maximize a notion of cumulative reward"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 9,
+        "Question": "What distinguishes Deep Learning from other Machine Learning algorithms?",
+        "Answer_Options": {
+            "A": "It uses a minimal amount of data",
+            "B": "It does not require algorithms",
+            "C": "It uses a large amount of unsupervised data to extract complex representations",
+            "D": "It is solely based on supervised learning techniques"
+        },
+        "Correct_Answer": {
+            "C": "It uses a large amount of unsupervised data to extract complex representations"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 10,
+        "Question": "According to the definition by Samuel (1959), what ability does Machine Learning give to computers?",
+        "Answer_Options": {
+            "A": "The ability to function without electricity",
+            "B": "The ability to learn without being explicitly programmed",
+            "C": "The ability to operate independently of human interaction",
+            "D": "The ability to use the internet"
+        },
+        "Correct_Answer": {
+            "B": "The ability to learn without being explicitly programmed"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 11,
+        "Question": "Which of the following is an example of a Supervised Learning problem?",
+        "Answer_Options": {
+            "A": "Cluster analysis",
+            "B": "Dimensionality reduction",
+            "C": "Classification",
+            "D": "Density estimation"
+        },
+        "Correct_Answer": {
+            "C": "Classification"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 12,
+        "Question": "What is a key characteristic of algorithms used in Machine Learning?",
+        "Answer_Options": {
+            "A": "They strictly follow static program instructions",
+            "B": "They make data-driven predictions or decisions",
+            "C": "They require manual updates",
+            "D": "They do not adapt over time"
+        },
+        "Correct_Answer": {
+            "B": "They make data-driven predictions or decisions"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 13,
+        "Question": "What does Unsupervised Learning typically aim to discover?",
+        "Answer_Options": {
+            "A": "Hidden patterns in the data",
+            "B": "Explicit programming techniques",
+            "C": "Static data structures",
+            "D": "Supervised learning algorithms"
+        },
+        "Correct_Answer": {
+            "A": "Hidden patterns in the data"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 14,
+        "Question": "What is the primary motivation behind the development of Deep Learning algorithms?",
+        "Answer_Options": {
+            "A": "To emulate the human brain's ability to observe, analyze, learn, and make decisions",
+            "B": "To completely replace human decision-making",
+            "C": "To eliminate the need for data in artificial intelligence",
+            "D": "To focus solely on hardware development"
+        },
+        "Correct_Answer": {
+            "A": "To emulate the human brain's ability to observe, analyze, learn, and make decisions"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    },
+    {
+        "Question_ID": 15,
+        "Question": "Which of the following best describes the relationship between Machine Learning and Artificial Intelligence?",
+        "Answer_Options": {
+            "A": "Machine Learning is a subspecialty of computer science within Artificial Intelligence",
+            "B": "Machine Learning and Artificial Intelligence are unrelated fields",
+            "C": "Artificial Intelligence is a subspecialty of Machine Learning",
+            "D": "Machine Learning replaces all functions of Artificial Intelligence"
+        },
+        "Correct_Answer": {
+            "A": "Machine Learning is a subspecialty of computer science within Artificial Intelligence"
+        },
+        "Source": "01_DS-AA - Introduction - SoSe23.pdf"
+    }
+]

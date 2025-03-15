@@ -110,23 +110,22 @@ def get_unique_union(documents):
     return unique_docs
 
 def format_docs(docs):
-    """Ensure proper formatting even if input is empty or incorrectly structured."""
-    if not docs:  # Handle empty input
+    """Formats retrieved documents for the prompt, including the source file name."""
+    if not docs:
         print("❌ Error: No documents to format.")
         return ""
 
-    if isinstance(docs, list) and docs and isinstance(docs[0], tuple):  
-        # Extract only the document part from (doc, score) tuples
-        docs = [doc for doc, _ in docs]  
+    formatted_docs = []
+    for doc in docs:
+        # ✅ Extract document content and source (metadata)
+        content = doc.page_content if isinstance(doc, Document) else str(doc)
+        source = doc.metadata.get("source", "Unknown Source")  # Ensure source is available
 
-    if isinstance(docs, list) and docs and isinstance(docs[0], str):  
-        return "\n\n".join(docs)  
+        # ✅ Combine content with source
+        formatted_docs.append(f"Source: {source}\n{content}")
 
-    if isinstance(docs, list) and docs and hasattr(docs[0], "page_content"):  
-        return "\n\n".join(doc.page_content for doc in docs)  
+    return "\n\n".join(formatted_docs)
 
-    print("❌ Error: Unexpected document format. Returning empty context.")
-    return ""  # Return empty string instead of failing
 
 
 # ----------------- QUERY EXPANSION & RERANKING -----------------
@@ -147,7 +146,7 @@ def expand_query(topic):
         Provide the queries separated by newlines."""
     )
 
-    query_expander = query_expansion_prompt | ChatOpenAI(temperature=0) | StrOutputParser()
+    query_expander = query_expansion_prompt | ChatOpenAI(model = "gpt-3.5-turbo", temperature=0) | StrOutputParser()
     
     expanded_queries = query_expander.invoke({"topic": topic})  # Expands input
     return expanded_queries.split("\n")  # Convert into a list of queries
@@ -166,7 +165,7 @@ def normalize_scores(scores):
 def rerank_with_crossencoder(input_data, threshold=0.6):
     """Reranks retrieved documents with Crossencoder and returns only those above the threshold."""
     
-    query_key = "topic"  # Change to "question" if using for Q&A
+    query_key = "topic"  
     if query_key not in input_data or "documents" not in input_data:
         print("❌ Error: Missing 'topic/question' or 'documents' in input_data.")
         return {"documents": []}  
@@ -207,7 +206,11 @@ def rerank_with_crossencoder(input_data, threshold=0.6):
     sorted_docs = sorted(zip(documents, normalized_scores), key=lambda x: x[1], reverse=True)
     filtered_docs = [doc for doc, score in sorted_docs if score >= threshold] 
 
-
+    # print(f"📊 **Reranking Scores:**")
+    # for i, (doc, score) in enumerate(sorted_docs):
+    #     preview = doc.page_content[:100] if hasattr(doc, 'page_content') else str(doc)[:100]
+    #     print(f"{i+1}. Score: {score:.4f} | Content Preview: {preview}...")
+        
     print(f"✅ {len(filtered_docs)} / {len(documents)} documents passed the threshold.")
 
     return {"documents": filtered_docs} 
@@ -242,7 +245,7 @@ def generate_exam_from_topic(docs, topic):
         """You are an AI assistant creating an exam on the topic: **{topic}**.
         Generate **15 multiple-choice questions** using only the given documents.
         Each question should have **four answer options (A, B, C, D)** and indicate the correct answer.
-        Also, provide the **document name** for each question.
+        Also, provide the **source file name** where the information came from.
 
         **Important Guidelines:**
         - **Do NOT ask questions about the document itself** (e.g., "What does the document mention?" or "In which document...?").  
@@ -265,7 +268,7 @@ def generate_exam_from_topic(docs, topic):
                 "Correct_Answer": {{
                     "<Correct Option Letter>": "<Correct Answer Text>"
                 }},
-                "Document": "<Source document name>"
+                "Source": "<Source file name>"  
             }},
             {{
                 "Question_ID": 2,  
@@ -279,7 +282,7 @@ def generate_exam_from_topic(docs, topic):
                 "Correct_Answer": {{
                     "<Correct Option Letter>": "<Correct Answer Text>"
                 }},
-                "Document": "<Source document name>"
+                "Source": "<Source file name>"  
             }}
         ]
         
@@ -295,22 +298,23 @@ def generate_exam_from_topic(docs, topic):
         Generate a total of **15 questions**, ensuring they are **clear, unbiased, and related to the topic.**"""
     )
 
+
     
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)  
+    #llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)  
+    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0)
     
     
     exam_chain = (
         {"context": RunnableLambda(lambda _: retrieved_docs) 
                     | RunnableLambda(lambda x: {"documents": x, "topic": topic}) 
                     | RunnableLambda(rerank_with_crossencoder) 
-                    | (lambda x: x["documents"])  
-                    | format_docs,
+                    | (lambda x: x["documents"]) 
+                    | format_docs,  
         "topic": RunnablePassthrough()}  
         | exam_prompt
         | llm
         | StrOutputParser()
     )
-
 
     return exam_chain
 

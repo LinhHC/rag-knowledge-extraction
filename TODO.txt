@@ -1,5 +1,4 @@
 - Evaluation (vllt doch RAGAS)
-- Ausgabe evtl als JSON (Query, Answer, Page, Document, ...) --> Siehe Teams
 - SELF Rag?
 - Unnötige Files entfernen
 - Kommentare schreiben
@@ -11,3 +10,4 @@ Done:
 
 - Warnung surpressen
 - Embedding nicht immer wiederholen (Chroma Cache)
+- Ausgabe evtl als JSON (Query, Answer, Page, Document, ...) --> Siehe Teams
