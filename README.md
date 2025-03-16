@@ -7,11 +7,23 @@ This project implements a **Retrieval-Augmented Generation (RAG) pipeline** to e
 ## **🚀 Installation & Setup**  
 
 ### **1️⃣ Create a Virtual Environment**  
-To ensure package compatibility, create a virtual environment:  
+- Run the following command to create a virtual environment:  
 
-```bash
-python -m venv venv
-```
+    ```bash
+    python -m venv venv
+    ```
+
+- Activate the environment:  
+    - **Windows (CMD / PowerShell):**  
+        ```bash
+        venv\Scripts\activate
+        ```
+    - **MacOS/Linux:**  
+        ```bash
+        source venv/bin/activate
+        ```
+
+---
 
 ### **2️⃣ Install Dependencies**  
 Once the virtual environment is active, install the required dependencies: 
@@ -51,18 +63,37 @@ python src/main.py
  ┣ 📂 data/                   # PDFs for content extraction
  ┣ 📂 evaluation/             # Evaluation results and metrics
  ┣ 📂 generated_exams/        # Output MCQ files (JSON format)
- ┣ 📂 results/                # Additional experiment results
  ┣ 📂 src/                    # Source code
  ┃ ┣ 📂 chroma_cache/        # Cached vector embeddings (ignored in Git)
  ┃ ┣ 📜 evaluation.py         # LLM-based exam evaluation
- ┃ ┣ 📜 exam.py               # Question generation logic
  ┃ ┣ 📜 rag_pipeline.py       # Main retrieval-augmented pipeline
  ┃ ┗ 📜 main.py               # Entry point script
  ┣ 📜 .gitignore              # Files and folders ignored in version control
  ┣ 📜 LICENSE                 # Project licensing
  ┣ 📜 README.md               # Documentation (this file)
- ┣ 📜 requirements.txt         # List of dependencies
- ┣ 📜 TODO.txt                # Development notes (ignored in Git)
- ┗ 📜 pipeline.txt             # Pipeline configuration (ignored in Git)
+ ┗ 📜 requirements.txt         # List of dependencies
 
 ```
+
+## **📊 Output Format**  
+The generated exams are saved as JSON files in /generated_exams/, structured as follows:
+```json
+[
+  {
+    "Question_ID": 1,
+    "Question": "What is the main goal of Machine Learning according to Mitchell (1997)?",
+    "Answer_Options": {
+      "A": "To create static program instructions",
+      "B": "To generalize experience to improve performance",
+      "C": "To follow empirical data without learning",
+      "D": "To rely solely on supervised learning"
+    },
+    "Correct_Answer": { "B": "To generalize experience to improve performance" },
+    "Source": "lecture1.pdf"
+  }
+]
+
+```
+
+## **📜 License**  
+This project is open-source under the Apache 2.0 License.
