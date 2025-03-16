@@ -1,8 +1,6 @@
-- Evaluation (vllt doch RAGAS)
-- SELF Rag?
 - Unnötige Files entfernen
 - Kommentare schreiben
-- Readme schreiben (erwähnen, dass LangSmith aus ist)
+- Readme schreiben 
 
 
 
@@ -11,3 +9,4 @@ Done:
 - Warnung surpressen
 - Embedding nicht immer wiederholen (Chroma Cache)
 - Ausgabe evtl als JSON (Query, Answer, Page, Document, ...) --> Siehe Teams
+- Evaluation (vllt doch RAGAS)
