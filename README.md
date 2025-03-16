@@ -74,20 +74,17 @@ This project implements a **Retrieval-Augmented Generation (RAG) pipeline** to e
 📂 project_root/
  ┣ 📂 data/                   # PDFs for content extraction
  ┣ 📂 evaluation/             # Evaluation results and metrics
- ┣ 📂 generated_exams/        # Output MCQ files (JSON format)
- ┣ 📂 results/                # Additional experiment results
+ ┣ 📂 generated_exams/        # Output multiple-choice question files (JSON format)
  ┣ 📂 src/                    # Source code
- ┃ ┣ 📂 chroma_cache/        # Cached vector embeddings (ignored in Git)
+ ┃ ┣ 📂 chroma_cache/         # Cached vector embeddings (ignored in Git)
  ┃ ┣ 📜 evaluation.py         # LLM-based exam evaluation
- ┃ ┣ 📜 exam.py               # Question generation logic
  ┃ ┣ 📜 rag_pipeline.py       # Main retrieval-augmented pipeline
  ┃ ┗ 📜 main.py               # Entry point script
  ┣ 📜 .gitignore              # Files and folders ignored in version control
  ┣ 📜 LICENSE                 # Project licensing
  ┣ 📜 README.md               # Documentation (this file)
- ┣ 📜 requirements.txt         # List of dependencies
- ┣ 📜 TODO.txt                # Development notes (ignored in Git)
- ┗ 📜 pipeline.txt             # Pipeline configuration (ignored in Git)
+ ┗ 📜 requirements.txt        # List of dependencies
+
 ```
 
 ---
