@@ -10,13 +10,12 @@ from sentence_transformers import CrossEncoder
 from langchain_chroma import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.document_loaders.pdf import PyPDFLoader
-from operator import itemgetter
+
 
 # ----------------- CONFIGURATION & SETUP -----------------
 def load_environment():
@@ -117,11 +116,11 @@ def format_docs(docs):
 
     formatted_docs = []
     for doc in docs:
-        # ✅ Extract document content and source (metadata)
+        # Extract document content and source (metadata)
         content = doc.page_content if isinstance(doc, Document) else str(doc)
-        source = doc.metadata.get("source", "Unknown Source")  # Ensure source is available
+        source = doc.metadata.get("source", "Unknown Source")  
 
-        # ✅ Combine content with source
+        # Combine content with source
         formatted_docs.append(f"Source: {source}\n{content}")
 
     return "\n\n".join(formatted_docs)
@@ -148,8 +147,8 @@ def expand_query(topic):
 
     query_expander = query_expansion_prompt | ChatOpenAI(model = "gpt-3.5-turbo", temperature=0) | StrOutputParser()
     
-    expanded_queries = query_expander.invoke({"topic": topic})  # Expands input
-    return expanded_queries.split("\n")  # Convert into a list of queries
+    expanded_queries = query_expander.invoke({"topic": topic})  
+    return expanded_queries.split("\n")  
 
 def normalize_scores(scores):
     """Normalizes CrossEncoder scores to a range of 0 to 1."""
@@ -206,7 +205,7 @@ def rerank_with_crossencoder(input_data, threshold=0.6):
     sorted_docs = sorted(zip(documents, normalized_scores), key=lambda x: x[1], reverse=True)
     filtered_docs = [doc for doc, score in sorted_docs if score >= threshold] 
 
-    # print(f"📊 **Reranking Scores:**")
+    # print(f" **Reranking Scores:**")
     # for i, (doc, score) in enumerate(sorted_docs):
     #     preview = doc.page_content[:100] if hasattr(doc, 'page_content') else str(doc)[:100]
     #     print(f"{i+1}. Score: {score:.4f} | Content Preview: {preview}...")
@@ -357,12 +356,12 @@ def save_exam_to_json(exam_output, topic):
                 print("Raw output:", exam_output)
                 return  
         else:
-            exam_data = exam_output  # If already JSON, use as is
+            exam_data = exam_output  
             print("Already a JSON object")
 
         # Ensure it's a list (LLM might return a single dictionary instead of a list)
         if isinstance(exam_data, dict):
-            exam_data = [exam_data]  # Convert single dict to list
+            exam_data = [exam_data]  
 
        
         print(f"Processed JSON Data:\n{json.dumps(exam_data, indent=4)}")
