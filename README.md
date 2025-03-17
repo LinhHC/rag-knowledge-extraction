@@ -7,7 +7,7 @@ This project implements a **Retrieval-Augmented Generation (RAG) pipeline** to e
 ## **🚀 Installation & Setup**  
 
 ### **1️⃣ Create a Virtual Environment**  
-- Ensure you have Python 3.12.9 installed
+- Ensure you have **Python 3.12.9** installed
   
     ```bash
     python --version
