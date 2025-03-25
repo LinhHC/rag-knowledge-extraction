@@ -7,10 +7,16 @@ This project implements a **Retrieval-Augmented Generation (RAG) pipeline** to e
 ## **🚀 Installation & Setup**  
 
 ### **1️⃣ Create a Virtual Environment**  
+- Ensure you have **Python 3.12.9** installed
+  
+    ```bash
+    python --version
+    ```
+    
 - Run the following command to create a virtual environment:  
 
     ```bash
-    python -m venv venv
+    python3.12 -m venv venv
     ```
 
 - Activate the environment:  
